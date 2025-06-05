@@ -24,9 +24,11 @@ class RestClient {
         def type = null
         println("Current environment: $currentEnvironment")
         if (currentEnvironment == Environment.DEVELOPMENT.name) {
-          type = 'TEST'
+          type = 'PROD'
         } else if (currentEnvironment == Environment.PRODUCTION.name) {
             type = 'PROD'
+        } else {
+            type = 'TEST'
         }
         def server = Server.findWhere(destination: 'CENTRAL_TOOL',type:type)
         String restUrl = server.getUrlPath()+server.getPort()+urlPath
@@ -41,7 +43,7 @@ class RestClient {
             connection.setRequestProperty("Content-Type", "application/json; utf-8")
             connection.setDoInput(true)
             connection.setDoOutput(true)
-//            connection.setConnectTimeout(3000)
+            connection.setConnectTimeout(10000)
             // Send post request
             connection.connect()
             if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) { // success
@@ -62,12 +64,13 @@ class RestClient {
                 JSONArray contentArray = resultJson.getJSONArray("content");
                // println(new JSONArray(contentArray))
                 return new JSONArray(contentArray)
-            } else {
+            } else if(connection.getResponseCode() == HttpURLConnection.HTTP_SERVER_ERROR){
+                return new JSONObject("{\"authenticated\":true}")
+            }else{
                 println("GET request not worked")
                 println(new JSONObject("{\"sessionId\":null,\"authenticated\":null}"))
                 return new JSONObject("{\"sessionId\":null,\"authenticated\":null}")
             }
-
 //            connection.connect()
             code = connection.getResponseCode()
             connection.disconnect()

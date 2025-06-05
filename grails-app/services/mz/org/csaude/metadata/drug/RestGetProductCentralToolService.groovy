@@ -1,8 +1,10 @@
 package mz.org.csaude.metadata.drug
 
+import ch.qos.logback.core.util.FixedDelay
+import grails.gorm.services.Service
 import grails.gorm.transactions.Transactional
+import groovy.transform.CompileStatic
 import groovy.util.logging.Slf4j
-import mz.org.csaude.metadata.clients.Client
 import mz.org.csaude.metadata.date.DateUtils
 import mz.org.csaude.metadata.date.DrugIdHelper
 import mz.org.csaude.metadata.restUtils.RestClient
@@ -12,13 +14,14 @@ import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 
-@Transactional
-@EnableScheduling
+@Service
 @Slf4j
+@CompileStatic
+@EnableScheduling
 class RestGetProductCentralToolService {
 
     private static final NAME = "RestGetProductCentralToolService"
-
+    static lazyInit = false
 
     private static final Logger LOGGER = LoggerFactory
             .getLogger("LOGGER");
@@ -27,63 +30,57 @@ class RestGetProductCentralToolService {
     RestClient restClient = new RestClient()
     private static final String FORMAT_STRING = '| %1$-10s |  %2$-40s|  %3$-30s|';
 
+    @Scheduled(cron = "0 0 0 ? * 2,6")
+    void execute() {
 
-    static lazyInit = false
+        def offset = 0
+        def count
 
-    @Scheduled(cron = "0 0 0 1 * ?")
- void execute() {
-     /*
-     def offset = 0
-     def count = loadDrugsFromCentralTool(offset).size()
+        while (true) {
+            count = loadDrugsFromCentralTool(offset).size()
 
-     if (count > 0) {
-         offset = ++offset
-         print(offset)
-         loadDrugsFromCentralTool(offset)
-     }
-      */
-     def offset = 0
-     def count
+            if (count > 0) {
+                offset++
+                println(offset)
 
-     while (true) {
-         count = loadDrugsFromCentralTool(offset).size()
-
-         if (count > 0) {
-             offset++
-             print(offset)
-
-         } else {
-             break // Exit the loop when count becomes zero
-         }
-     }
- }
+            } else {
+                break // Exit the loop when count becomes zero
+            }
+        }
+    }
 
 
     @Transactional
-    List<Product>  loadDrugsFromCentralTool(int offset) {
+    List<Product> loadDrugsFromCentralTool(int offset) {
         Product.withTransaction {
-                def productList = new ArrayList<Product>()
-                String urlPath = "/api/v1/products?size=100&page=" + offset;
-                LOGGER.info("Iniciando a Busca de Medicamentos")
-                def response = restClient.requestGetDataOnProvincialServerClient(urlPath)
+            def productList = new ArrayList<Product>()
+            def date = DateUtils.createParameterDate()
+            String urlPath = "/api/v1/products?size=100&page=" + offset
+            LOGGER.info("Iniciando a Busca de Medicamentos")
+            def response = restClient.requestGetDataOnProvincialServerClient(urlPath)
 
-          //  println(response)
-            if(response.getAt('authenticated') == null) {
+            //  println(response)
+            if (response.getAt('authenticated') == null) {
                 LOGGER.info("Fim da Busca de Medicamentos")
-               return productList;
+                return productList;
             }
             for (def productObject : response) {
                 try {
+                    if (response?.getAt("fnm") !== null) {
+
+                    if (productObject.getAt("fnm").toString().containsIgnoreCase("08S01ZV"))
+                        println(" FNM " + productObject.getAt("fnm"))
+
                     def productExist = Product.findWhere(fnm: productObject.getAt("fnm"))
 
                     if (!productExist) {
                         productExist = new Product()
                         String fnmCode = productObject.getAt("fnm")
 
-                        Object drug = DrugIdHelper.initiateDrugsList().get(  "'" + fnmCode + "'")
+                        Object drug = DrugIdHelper.initiateDrugsList().get("'" + fnmCode + "'")
                         productExist.id = drug != null ? drug.id.replace("'", "") : UUID.randomUUID()
                         productExist.status = productObject.getAt(("status"))
-                        productExist.updateDate = DateUtils.createDate(productObject.getAt(("updateDate")),'yyyy-MM-dd')
+                        productExist.updateDate = DateUtils.createDate(productObject.getAt(("updateDate")) as String, 'yyyy-MM-dd')
                         productExist.fnm = productObject.getAt(("fnm"))
                         productExist.description = productObject.getAt(("description"))
                         productExist.shortDescription = productObject.getAt(("shortDescription"))
@@ -110,9 +107,9 @@ class RestGetProductCentralToolService {
                         productExist.volume = productObject.getAt(("volume"))
                         productExist.unitsPerPack = productObject.getAt(("unitsPerPack"))
                         productExist.managedByPack = productObject.getAt(("managedByPack"))
-                        productExist.uuidOpenmrs =  drug != null ? drug.uuid_openmrs.replace("'", "") : null
+                        productExist.uuidOpenmrs = drug != null ? drug.uuid_openmrs.replace("'", "") : null
                         productExist.validate()
-                        productExist.save(flush:true)
+                        productExist.save(flush: true)
                     }
                     def regimeList = new ArrayList()
                     regimeList = productObject.getAt("areas") as ArrayList
@@ -121,36 +118,37 @@ class RestGetProductCentralToolService {
                             def regimeExist = Regimen.findWhere(code: regimeTerapeutico.getAt("regimeCode"))
                             String regimeCode = regimeTerapeutico.getAt("regimeCode")
                             if (!regimeExist) {
-                                println(DrugIdHelper.initiateRegimensList().get( "'" + regimeCode + "'"))
+                                println(DrugIdHelper.initiateRegimensList().get("'" + regimeCode + "'"))
                                 Object regimen = DrugIdHelper.initiateRegimensList().get("'" + regimeCode + "'")
                                 regimeExist = new Regimen()
                                 regimeExist.id = regimen != null ? regimen.id.replace("'", "") : UUID.randomUUID()
                                 regimeExist.status = regimeTerapeutico.getAt(("status"))
-                                regimeExist.updateDate = DateUtils.createDate(productObject.getAt(("updateDate")),'yyyy-MM-dd')
+                                regimeExist.updateDate = DateUtils.createDate(productObject.getAt(("updateDate")) as String, 'yyyy-MM-dd')
                                 regimeExist.code = regimeTerapeutico.getAt(("regimeCode"))
                                 regimeExist.description = regimeTerapeutico.getAt(("regimeDescription"))
                                 regimeExist.areaCode = regimeTerapeutico.getAt(("areaCode"))
                                 regimeExist.areaDescription = regimeTerapeutico.getAt(("areaDescription"))
                                 regimeExist.categoryCode = regimeTerapeutico.getAt(("categoryCode"))
                                 regimeExist.categoryDescription = regimeTerapeutico.getAt(("categoryDescription"))
-                                regimeExist.uuidOpenmrs =  regimen != null ? regimen.openmrs_uuid.replace("'", "") : null
+                                regimeExist.uuidOpenmrs = regimen != null ? regimen.openmrs_uuid.replace("'", "") : null
                             }
                             regimeExist.addToProducts(productExist)
-                        //    productExist.addToTherapeuticRegimenList(regimeExist)
-                        //    productExist.save(flush:true)
-                            regimeExist.save(flush:true)
+                            regimeExist.save(flush: true)
                         }
                     }
                     productList.add(productExist)
+                }else{
+                        productList.add(new Product())
+                    }
                 } catch (Exception e) {
                     e.printStackTrace()
+                }finally {
+                    continue
                 }
             }
             return productList
         }
     }
-
-
 
 
 }
