@@ -116,7 +116,7 @@ environments:
     development:
         dataSource:
             dbCreate: update
-            url: jdbc:postgresql://172.22.0.2:5432/metadata-server_1
+            url: jdbc:postgresql://localhost:9876/metadata-server
     test:
         dataSource:
             dbCreate: update

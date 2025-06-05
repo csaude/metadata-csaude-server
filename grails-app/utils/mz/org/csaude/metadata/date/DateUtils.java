@@ -15,6 +15,7 @@ public class DateUtils {
     public static final String SECOND_FORMAT="ss";
     public static final String MINUTE_FORMAT="mm";
     public static final String MILLISECOND_FORMAT="SSS";
+    public static final String YYYMMDD_DATE_FORMAT ="yyyyMMdd";
     public static final String DDMM_DATE_FORMAT ="dd-MM-yyyy";
     public static final String MMDD_DATE_FORMAT="MM-dd-yyyy";
     public static final String DATE_TIME_FORMAT="dd-MM-yyyy HH:mm:ss";
@@ -28,6 +29,16 @@ public class DateUtils {
 
             return date;
         } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String createParameterDate() {
+        try {
+            SimpleDateFormat sDate = new SimpleDateFormat(YYYMMDD_DATE_FORMAT);
+
+            return sDate.format(new Date());
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
